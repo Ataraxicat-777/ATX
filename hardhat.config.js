@@ -1,36 +1,44 @@
-// scripts/deployATXIA.js
-const { ethers, run, network } = require("hardhat");
+// hardhat.config.js
+require("@nomicfoundation/hardhat-toolbox");
+require("@nomicfoundation/hardhat-verify");
+require("@nomiclabs/hardhat-ethers");
+require("dotenv").config();
 
-async function main() {
-  const [deployer] = await ethers.getSigners();
+const SEPOLIA_RPC_URL = process.env.SEPOLIA_RPC_URL;
+const PRIVATE_KEY = process.env.PRIVATE_KEY;
+const ETHERSCAN_API_KEY = process.env.ETHERSCAN_API_KEY;
 
-  console.log("Deploying contract with:", deployer.address);
-
-  const ATXIA = await ethers.getContractFactory("ATXIA");
-  const atxia = await ATXIA.deploy(deployer.address);
-
-  await atxia.deployed();
-
-  console.log(`ATXIA deployed at: ${atxia.address}`);
-
-  // Verify the contract if not on local network
-  if (network.name !== "hardhat" && process.env.ETHERSCAN_API_KEY) {
-    console.log("Waiting for Etherscan to index contract...");
-    await atxia.deployTransaction.wait(6); // wait 6 blocks for Etherscan
-
-    try {
-      await run("verify:verify", {
-        address: atxia.address,
-        constructorArguments: [deployer.address],
-      });
-      console.log("Contract verified!");
-    } catch (err) {
-      console.error("Verification error:", err);
+module.exports = {
+  solidity: {
+    version: "0.8.20",
+    settings: {
+      optimizer: {
+        enabled: true,
+        runs: 777,
+      },
+    },
+  },
+  defaultNetwork: "sepolia",
+  networks: {
+    sepolia: {
+      url: SEPOLIA_RPC_URL,
+      accounts: [PRIVATE_KEY],
+    },
+    hardhat: {},
+    localhost: {},
+    goerli: {
+      url: process.env.GOERLI_RPC_URL,
+      accounts: [process.env.PRIVATE_KEY],
+    },
+    polygon: {
+      url: process.env.POLYGON_RPC_URL,
+      accounts: [process.env.PRIVATE_KEY],
     }
-  }
-}
-
-main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+  },
+  etherscan: {
+    apiKey: {
+      sepolia: ETHERSCAN_API_KEY,
+    },
+  },
+  verify: ["all"],
+};
