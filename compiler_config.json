@@ -1,5 +1,11 @@
+// compiler_config.json
 {
   "language": "Solidity",
+  "sources": {
+    "AtaxiaToken.sol": {
+      "urls": ["contracts/AtaxiaToken.sol"]
+    }
+  },
   "settings": {
     "optimizer": {
       "enabled": true,

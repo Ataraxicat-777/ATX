@@ -1,101 +1,82 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import * as OZ from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import * as Own from "@openzeppelin/contracts/access/Ownable.sol";
 import "./AutoBurnMind.sol";
 
-contract ATXIA is ERC20, Ownable {
+contract ATXIA is OZ.ERC20, Own.Ownable {
     using AutoBurnMind for uint256;
 
     struct VestingSchedule {
         uint256 totalAmount;
-        uint256 startTime;
-        uint256 cliffDuration;
-        uint256 totalDuration;
-        uint256 amountClaimed;
+        uint256 startBlock;
+        uint256 cliffBlocks;
+        uint256 durationBlocks;
+        uint256 claimed;
     }
 
-    mapping(address => bool) public hasUserClaimedInitialTokens;
-    mapping(address => VestingSchedule) private userVestingSchedules;
-    mapping(address => uint256) public userStakes;
+    mapping(address => VestingSchedule) private vesting;
+    mapping(address => bool) private hasClaimed;
 
-    uint256 public burnRate = 10;
-    bool private isClaimingEnabled = true;
+    event TokensClaimed(address indexed user, uint256 amount);
+    event TokensStaked(address indexed user, uint256 amount);
 
-    event TokensClaimed(address indexed recipient, uint256 amount);
-    event TokensStaked(address indexed staker, uint256 amount);
-    event VestingScheduleCreated(address indexed beneficiary, uint256 totalAmount);
+    uint256 public constant BURN_RATE = 10; // 10%
+    bool public isClaimingOpen = true;
 
-    constructor() ERC20("ATXIA", "ATX") Ownable(msg.sender) {
-        _mint(msg.sender, 10_000_000 * 10 ** decimals());
+    constructor(address initialOwner) OZ.ERC20("ATXIA", "ATX") Own.Ownable(initialOwner) {
+        _mint(initialOwner, 10_000_000 * 10 ** decimals());
     }
 
-    function claimInitialTokens(address recipient) external onlyOwner {
-        require(isClaimingEnabled, "Claiming disabled");
-        require(!hasUserClaimedInitialTokens[recipient], "Already claimed");
+    function claimInitial(address recipient) external onlyOwner {
+        require(isClaimingOpen, "Claiming off");
+        require(!hasClaimed[recipient], "Already claimed");
 
-        hasUserClaimedInitialTokens[recipient] = true;
-        uint256 initialAmount = 1000 * 10 ** decimals();
-        _mint(recipient, initialAmount);
+        uint256 amount = 1000 * 10 ** decimals();
+        _mint(recipient, amount);
+        hasClaimed[recipient] = true;
 
-        emit TokensClaimed(recipient, initialAmount);
+        emit TokensClaimed(recipient, amount);
     }
 
     function disableClaiming() external onlyOwner {
-        isClaimingEnabled = false;
+        isClaimingOpen = false;
     }
 
-    function createVestingSchedule(
-        address beneficiary,
-        uint256 amount,
-        uint256 cliffDuration,
-        uint256 totalDuration
-    ) external onlyOwner {
-        userVestingSchedules[beneficiary] = VestingSchedule({
+    function createVesting(address user, uint256 amount, uint256 cliffBlocks, uint256 totalBlocks) external onlyOwner {
+        require(totalBlocks > 0 && cliffBlocks <= totalBlocks, "Bad schedule");
+
+        vesting[user] = VestingSchedule({
             totalAmount: amount,
-            startTime: block.timestamp,
-            cliffDuration: cliffDuration,
-            totalDuration: totalDuration,
-            amountClaimed: 0
+            startBlock: block.number,
+            cliffBlocks: cliffBlocks,
+            durationBlocks: totalBlocks,
+            claimed: 0
         });
 
-        emit VestingScheduleCreated(beneficiary, amount);
+        emit TokensStaked(user, amount);
     }
 
-    function claimVestedTokens() external {
-        VestingSchedule storage schedule = userVestingSchedules[msg.sender];
-        require(block.timestamp >= schedule.startTime + schedule.cliffDuration, "Cliff not reached");
+    function claimVested() external {
+        VestingSchedule storage sched = vesting[msg.sender];
+        require(sched.totalAmount > 0, "No schedule");
 
-        uint256 timeElapsed = block.timestamp - schedule.startTime;
-        uint256 totalVested = (schedule.totalAmount * timeElapsed) / schedule.totalDuration;
-        uint256 claimable = totalVested - schedule.amountClaimed;
+        uint256 blocksPassed = block.number - sched.startBlock;
+        require(blocksPassed >= sched.cliffBlocks, "Cliff not passed");
 
-        require(claimable > 0, "Nothing to claim");
+        uint256 totalUnlocked = (sched.totalAmount * blocksPassed) / sched.durationBlocks;
+        uint256 available = totalUnlocked - sched.claimed;
+        require(available > 0, "None available");
 
-        schedule.amountClaimed += claimable;
-        _mint(msg.sender, claimable);
+        sched.claimed += available;
+        _mint(msg.sender, available);
 
-        emit TokensClaimed(msg.sender, claimable);
+        emit TokensClaimed(msg.sender, available);
     }
 
     function stake(uint256 amount) external {
-        require(balanceOf(msg.sender) >= amount, "Insufficient balance");
-        _burn(msg.sender, amount);
-        userStakes[msg.sender] += amount;
-
+        require(balanceOf(msg.sender) >= amount, "Not enough");
         emit TokensStaked(msg.sender, amount);
-    }
-
-    function _update(address from, address to, uint256 amount) internal override {
-        uint256 burnAmount = burnRate.calculateDynamicBurn(block.timestamp, amount);
-        uint256 tokensToBurn = (amount * burnAmount) / 100;
-        uint256 tokensToSend = amount - tokensToBurn;
-
-        if (from != address(0)) {
-            _burn(from, tokensToBurn);
-        }
-
-        super._update(from, to, tokensToSend);
     }
 }
