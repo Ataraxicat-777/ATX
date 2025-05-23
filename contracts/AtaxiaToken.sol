@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-/* ==== OpenZeppelin: Context.sol ==== */
+/* ==== Context.sol (OpenZeppelin) ==== */
 abstract contract Context {
     function _msgSender() internal view virtual returns (address) {
         return msg.sender;
     }
 }
 
-/* ==== OpenZeppelin: Ownable.sol ==== */
+/* ==== Ownable.sol (OpenZeppelin) ==== */
 abstract contract Ownable is Context {
     address private _owner;
 
@@ -57,7 +57,7 @@ abstract contract Ownable is Context {
     }
 }
 
-/* ==== OpenZeppelin: ERC20 Interface + Metadata ==== */
+/* ==== ERC20.sol (OpenZeppelin - Flattened) ==== */
 interface IERC20 {
     function totalSupply() external view returns (uint256);
     function balanceOf(address account) external view returns (uint256);
@@ -65,7 +65,6 @@ interface IERC20 {
     function allowance(address owner, address spender) external view returns (uint256);
     function approve(address spender, uint256 value) external returns (bool);
     function transferFrom(address from, address to, uint256 value) external returns (bool);
-
     event Transfer(address indexed from, address indexed to, uint256 value);
     event Approval(address indexed owner, address indexed spender, uint256 value);
 }
@@ -76,7 +75,6 @@ interface IERC20Metadata is IERC20 {
     function decimals() external view returns (uint8);
 }
 
-/* ==== ERC20 Errors ==== */
 interface IERC20Errors {
     error ERC20InsufficientBalance(address sender, uint256 balance, uint256 needed);
     error ERC20InvalidSender(address sender);
@@ -86,7 +84,6 @@ interface IERC20Errors {
     error ERC20InvalidSpender(address spender);
 }
 
-/* ==== OpenZeppelin: ERC20.sol Core ==== */
 abstract contract ERC20 is Context, IERC20, IERC20Metadata, IERC20Errors {
     mapping(address => uint256) private _balances;
     mapping(address => mapping(address => uint256)) private _allowances;
@@ -100,11 +97,22 @@ abstract contract ERC20 is Context, IERC20, IERC20Metadata, IERC20Errors {
         _symbol = symbol_;
     }
 
-    function name() public view virtual override returns (string memory) { return _name; }
-    function symbol() public view virtual override returns (string memory) { return _symbol; }
-    function decimals() public view virtual override returns (uint8) { return 18; }
+    function name() public view virtual override returns (string memory) {
+        return _name;
+    }
 
-    function totalSupply() public view virtual override returns (uint256) { return _totalSupply; }
+    function symbol() public view virtual override returns (string memory) {
+        return _symbol;
+    }
+
+    function decimals() public view virtual override returns (uint8) {
+        return 18;
+    }
+
+    function totalSupply() public view virtual override returns (uint256) {
+        return _totalSupply;
+    }
+
     function balanceOf(address account) public view virtual override returns (uint256) {
         return _balances[account];
     }
@@ -133,8 +141,8 @@ abstract contract ERC20 is Context, IERC20, IERC20Metadata, IERC20Errors {
     }
 
     function _transfer(address from, address to, uint256 value) internal virtual {
-        if (from == address(0)) revert ERC20InvalidSender(address(0));
-        if (to == address(0)) revert ERC20InvalidReceiver(address(0));
+        if (from == address(0)) revert ERC20InvalidSender(from);
+        if (to == address(0)) revert ERC20InvalidReceiver(to);
         _update(from, to, value);
     }
 
@@ -144,25 +152,31 @@ abstract contract ERC20 is Context, IERC20, IERC20Metadata, IERC20Errors {
         } else {
             uint256 fromBalance = _balances[from];
             if (fromBalance < value) revert ERC20InsufficientBalance(from, fromBalance, value);
-            unchecked { _balances[from] = fromBalance - value; }
+            unchecked {
+                _balances[from] = fromBalance - value;
+            }
         }
 
         if (to == address(0)) {
-            unchecked { _totalSupply -= value; }
+            unchecked {
+                _totalSupply -= value;
+            }
         } else {
-            unchecked { _balances[to] += value; }
+            unchecked {
+                _balances[to] += value;
+            }
         }
 
         emit Transfer(from, to, value);
     }
 
     function _mint(address account, uint256 value) internal virtual {
-        if (account == address(0)) revert ERC20InvalidReceiver(address(0));
+        if (account == address(0)) revert ERC20InvalidReceiver(account);
         _update(address(0), account, value);
     }
 
     function _burn(address account, uint256 value) internal virtual {
-        if (account == address(0)) revert ERC20InvalidSender(address(0));
+        if (account == address(0)) revert ERC20InvalidSender(account);
         _update(account, address(0), value);
     }
 
@@ -171,8 +185,8 @@ abstract contract ERC20 is Context, IERC20, IERC20Metadata, IERC20Errors {
     }
 
     function _approve(address owner, address spender, uint256 value, bool emitEvent) internal virtual {
-        if (owner == address(0)) revert ERC20InvalidApprover(address(0));
-        if (spender == address(0)) revert ERC20InvalidSpender(address(0));
+        if (owner == address(0)) revert ERC20InvalidApprover(owner);
+        if (spender == address(0)) revert ERC20InvalidSpender(spender);
         _allowances[owner][spender] = value;
         if (emitEvent) emit Approval(owner, spender, value);
     }
@@ -181,12 +195,14 @@ abstract contract ERC20 is Context, IERC20, IERC20Metadata, IERC20Errors {
         uint256 currentAllowance = allowance(owner, spender);
         if (currentAllowance < type(uint256).max) {
             if (currentAllowance < value) revert ERC20InsufficientAllowance(spender, currentAllowance, value);
-            unchecked { _approve(owner, spender, currentAllowance - value, false); }
+            unchecked {
+                _approve(owner, spender, currentAllowance - value, false);
+            }
         }
     }
 }
 
-/* ==== AutoBurnMind Lib ==== */
+/* ==== AutoBurnMind Library ==== */
 library AutoBurnMind {
     function calculateDynamicBurn(uint256 baseRate, uint256 timeElapsed, uint256 volume) internal pure returns (uint256) {
         uint256 timeFactor = timeElapsed / 3600;
@@ -195,7 +211,7 @@ library AutoBurnMind {
     }
 }
 
-/* ==== ATXIA Token ==== */
+/* ==== ATXIA Contract ==== */
 contract ATXIA is ERC20, Ownable {
     using AutoBurnMind for uint256;
 
