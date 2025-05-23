@@ -1,0 +1,27 @@
+{
+  "language": "Solidity",
+  "settings": {
+    "optimizer": {
+      "enabled": true,
+      "runs": 777
+    },
+    "outputSelection": {
+      "*": {
+        "*": [
+          "abi",
+          "evm.bytecode",
+          "evm.deployedBytecode",
+          "evm.methodIdentifiers",
+          "metadata",
+          "evm.gasEstimates",
+          "evm.assembly",
+          "evm.legacyAssembly",
+          "storageLayout",
+          "devdoc",
+          "userdoc"
+        ],
+        "": ["ast"]
+      }
+    }
+  }
+}
