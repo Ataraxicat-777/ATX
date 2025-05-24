@@ -1,6 +1,43 @@
+# Node modules (local packages)
 node_modules/
+
+# Env secrets
 .env
+.env.*.local
+
+# Compiled contracts (build output)
 artifacts/
 cache/
-coverage/
 typechain/
+typechain-types/
+
+# Coverage reports
+coverage/
+
+# Hardhat deployment files (optional)
+deployments/
+*.tsbuildinfo
+
+# Mac/Linux/Windows system files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# VSCode & IDE junk
+.vscode/
+.idea/
+
+# Etherscan verification artifacts (optional)
+flattened.sol
+
+# Remix generated metadata
+*.metadata.json
+
+# General
+dist/
+out/
