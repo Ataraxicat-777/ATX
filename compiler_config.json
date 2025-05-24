@@ -11,6 +11,9 @@
       "runs": 1000
     },
     "evmVersion": "london",
+    "metadata": {
+      "bytecodeHash": "ipfs"
+    },
     "outputSelection": {
       "*": {
         "*": [
@@ -18,13 +21,13 @@
           "evm.bytecode",
           "evm.deployedBytecode",
           "evm.methodIdentifiers",
-          "metadata",
           "evm.gasEstimates",
           "evm.assembly",
           "evm.legacyAssembly",
           "storageLayout",
           "devdoc",
-          "userdoc"
+          "userdoc",
+          "metadata"
         ],
         "": ["ast"]
       }

@@ -1,42 +1,47 @@
-import { ethers,network } from "hardhat";
+import { ethers, network } from "hardhat";
+import fs from "fs";
 
 async function main() {
-  // Get the deployer account
   const [deployer] = await ethers.getSigners();
   console.log("Deploying with:", deployer.address);
 
-  // Log the network being deployed to
   const networkName = network.name;
   console.log("Deploying to network:", networkName);
 
-  // Get the contract factory
   const ATXIA = await ethers.getContractFactory("ATXIA");
-
-  // Deploy the contract with the deployer's address as the initial owner
   const initialOwner = deployer.address;
   const contract = await ATXIA.deploy(initialOwner, {
-    gasLimit: 3000000, // Adjust based on network conditions
+    gasLimit: 3000000,
   });
 
-  // Wait for deployment to complete
   await contract.waitForDeployment();
-
-  // Get the deployed contract address
   const contractAddress = await contract.getAddress();
+  const totalSupply = await contract.totalSupply();
+
   console.log("ATXIA deployed to:", contractAddress);
   console.log("Initial owner:", initialOwner);
-
-  // Log total supply for verification
-  const totalSupply = await contract.totalSupply();
   console.log("Total supply:", ethers.formatEther(totalSupply), "ATX");
+  console.log("Constructor arguments:", JSON.stringify([initialOwner]));
+  console.log(`npx hardhat verify --network ${networkName} ${contractAddress} "${initialOwner}"`);
 
-  // Log constructor arguments for Etherscan verification
-  console.log("Constructor arguments for verification:", initialOwner);
+  // Optional metadata export
+  const { chainId } = await deployer.provider.getNetwork();
+  fs.mkdirSync("deployments", { recursive: true });
+  fs.writeFileSync(
+    `deployments/${networkName}.json`,
+    JSON.stringify(
+      {
+        address: contractAddress,
+        owner: initialOwner,
+        chainId,
+      },
+      null,
+      2
+    )
+  );
 }
 
-main()
-  .then(() => process.exit(0))
-  .catch((error) => {
-    console.error("Deployment failed:", error);
-    process.exit(1);
-  });
+main().catch((error) => {
+  console.error("Deployment failed:", error);
+  process.exit(1);
+});

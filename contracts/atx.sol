@@ -1,11 +1,4 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// ATXIA: Ultimate ERC20-Plus Token Contract for Solo Deployment
-// Copyright (c) 2025 ATXIA
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published
-// by the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
 pragma solidity ^0.8.0;
 
 interface IERC20 {
@@ -26,7 +19,7 @@ contract ATXIA is IERC20 {
     uint256 public constant TOTAL_SUPPLY_CAP = 100_000_000_000_000 * (10 ** 18);
 
     address private _owner;
-    uint256 private _status = 1; // Reentrancy guard: 1 = unlocked, 2 = locked
+    uint256 private _status = 1;
     bool public isPaused = false;
 
     mapping(address => uint256) private _balances;
@@ -41,6 +34,9 @@ contract ATXIA is IERC20 {
     error ReentrantCall();
     error Paused();
     error SupplyCapExceeded(uint256 requested, uint256 cap);
+
+    event Mint(address indexed to, uint256 amount);
+    event Burn(address indexed from, uint256 amount);
 
     constructor(address initialOwner) {
         if (initialOwner == address(0)) revert InvalidAddress(address(0));
@@ -62,6 +58,11 @@ contract ATXIA is IERC20 {
     modifier whenNotPaused() {
         if (isPaused) revert Paused();
         _;
+    }
+
+    function transferOwnership(address newOwner) external onlyOwner {
+        if (newOwner == address(0)) revert InvalidAddress(newOwner);
+        _owner = newOwner;
     }
 
     function totalSupply() external view override returns (uint256) {
@@ -119,9 +120,12 @@ contract ATXIA is IERC20 {
     function _mint(address to, uint256 value) internal {
         if (to == address(0)) revert InvalidAddress(to);
         if (_totalSupply + value > TOTAL_SUPPLY_CAP) revert SupplyCapExceeded(_totalSupply + value, TOTAL_SUPPLY_CAP);
-        _totalSupply += value;
-        _balances[to] += value;
+        unchecked {
+            _totalSupply += value;
+            _balances[to] += value;
+        }
         emit Transfer(address(0), to, value);
+        emit Mint(to, value);
     }
 
     function mint(address to, uint256 value) external onlyOwner whenNotPaused {
@@ -135,9 +139,23 @@ contract ATXIA is IERC20 {
         _balances[from] = balance - value;
         _totalSupply -= value;
         emit Transfer(from, address(0), value);
+        emit Burn(from, value);
     }
 
     function burn(uint256 value) external whenNotPaused nonReentrant {
         _burn(msg.sender, value);
+    }
+
+    // IERC20Metadata compliance
+    function name() public pure returns (string memory) {
+        return NAME;
+    }
+
+    function symbol() public pure returns (string memory) {
+        return SYMBOL;
+    }
+
+    function decimals() public pure returns (uint8) {
+        return DECIMALS;
     }
 }
