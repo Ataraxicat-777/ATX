@@ -1,20 +1,42 @@
-// scripts/deploy.js
-const hre = require("hardhat");
+import { ethers,network } from "hardhat";
 
 async function main() {
-  const [deployer] = await hre.ethers.getSigners();
+  // Get the deployer account
+  const [deployer] = await ethers.getSigners();
   console.log("Deploying with:", deployer.address);
 
-  // Get contract factory and deploy contract
-  const ATXIA = await hre.ethers.getContractFactory("ATXIA");
-  const contract = await ATXIA.deploy(deployer.address); // passing the deployer's address as the initial owner
+  // Log the network being deployed to
+  const networkName = network.name;
+  console.log("Deploying to network:", networkName);
 
-  await contract.deployed();
+  // Get the contract factory
+  const ATXIA = await ethers.getContractFactory("ATXIA");
 
-  console.log("ATXIA deployed to:", contract.address);
+  // Deploy the contract with the deployer's address as the initial owner
+  const initialOwner = deployer.address;
+  const contract = await ATXIA.deploy(initialOwner, {
+    gasLimit: 3000000, // Adjust based on network conditions
+  });
+
+  // Wait for deployment to complete
+  await contract.waitForDeployment();
+
+  // Get the deployed contract address
+  const contractAddress = await contract.getAddress();
+  console.log("ATXIA deployed to:", contractAddress);
+  console.log("Initial owner:", initialOwner);
+
+  // Log total supply for verification
+  const totalSupply = await contract.totalSupply();
+  console.log("Total supply:", ethers.formatEther(totalSupply), "ATX");
+
+  // Log constructor arguments for Etherscan verification
+  console.log("Constructor arguments for verification:", initialOwner);
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+main()
+  .then(() => process.exit(0))
+  .catch((error) => {
+    console.error("Deployment failed:", error);
+    process.exit(1);
+  });

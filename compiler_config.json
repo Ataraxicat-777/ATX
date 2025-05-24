@@ -1,16 +1,16 @@
-// compiler_config.json
 {
   "language": "Solidity",
   "sources": {
-    "AtaxiaToken.sol": {
-      "urls": ["contracts/AtaxiaToken.sol"]
+    "ATX.sol": {
+      "urls": ["ATX.sol"]
     }
   },
   "settings": {
     "optimizer": {
       "enabled": true,
-      "runs": 777
+      "runs": 1000
     },
+    "evmVersion": "london",
     "outputSelection": {
       "*": {
         "*": [
