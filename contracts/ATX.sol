@@ -60,7 +60,25 @@ interface IERC20 {
     event Approval(address indexed owner, address indexed spender, uint256 amount);
 }
 
-contract ATXIA is IERC20, Ownable {
+abstract contract ReentrancyGuard {
+    uint256 private constant NOT_ENTERED = 1;
+    uint256 private constant ENTERED = 2;
+
+    uint256 private _status;
+
+    constructor() {
+        _status = NOT_ENTERED;
+    }
+
+    modifier nonReentrant() {
+        require(_status != ENTERED, "ReentrancyGuard: reentrant call");
+        _status = ENTERED;
+        _;
+        _status = NOT_ENTERED;
+    }
+}
+
+contract ATXIA is Context, IERC20, Ownable, ReentrancyGuard {
     string public constant name = "ATXIA";
     string public constant symbol = "ATX";
     uint8 public constant decimals = 18;
@@ -83,25 +101,22 @@ contract ATXIA is IERC20, Ownable {
         return _balances[account];
     }
 
-    function transfer(address to, uint256 amount) public override returns (bool) {
-        address owner = _msgSender();
-        _transfer(owner, to, amount);
+    function transfer(address to, uint256 amount) public override nonReentrant returns (bool) {
+        _transfer(_msgSender(), to, amount);
         return true;
     }
 
-    function allowance(address owner, address spender) public view override returns (uint256) {
-        return _allowances[owner][spender];
+    function allowance(address owner_, address spender) public view override returns (uint256) {
+        return _allowances[owner_][spender];
     }
 
     function approve(address spender, uint256 amount) public override returns (bool) {
-        address owner = _msgSender();
-        _approve(owner, spender, amount);
+        _approve(_msgSender(), spender, amount);
         return true;
     }
 
-    function transferFrom(address from, address to, uint256 amount) public override returns (bool) {
-        address spender = _msgSender();
-        _spendAllowance(from, spender, amount);
+    function transferFrom(address from, address to, uint256 amount) public override nonReentrant returns (bool) {
+        _spendAllowance(from, _msgSender(), amount);
         _transfer(from, to, amount);
         return true;
     }
@@ -131,35 +146,40 @@ contract ATXIA is IERC20, Ownable {
         emit Transfer(from, address(0), amount);
     }
 
-    function _approve(address owner, address spender, uint256 amount) internal {
-        require(owner != address(0) && spender != address(0), "ERC20: zero address");
-        _allowances[owner][spender] = amount;
-        emit Approval(owner, spender, amount);
+    function _approve(address owner_, address spender, uint256 amount) internal {
+        require(owner_ != address(0) && spender != address(0), "ERC20: zero address");
+        _allowances[owner_][spender] = amount;
+        emit Approval(owner_, spender, amount);
     }
 
-    function _spendAllowance(address owner, address spender, uint256 amount) internal {
-        uint256 currentAllowance = allowance(owner, spender);
+    function _spendAllowance(address owner_, address spender, uint256 amount) internal {
+        uint256 currentAllowance = _allowances[owner_][spender];
         require(currentAllowance >= amount, "ERC20: insufficient allowance");
-        _approve(owner, spender, currentAllowance - amount);
+        _approve(owner_, spender, currentAllowance - amount);
     }
 
-    // 🔧 Dev Mint for Stress Testing
-    function devMint(address to, uint256 amount) external onlyOwner {
+    function mint(address to, uint256 amount) external onlyOwner {
         _mint(to, amount);
     }
 
-    // 🔥 Manual Burn for Sim
-    function devBurn(address from, uint256 amount) external onlyOwner {
+    function burn(address from, uint256 amount) external onlyOwner {
         _burn(from, amount);
     }
 
-    // 🎯 Toggle claiming manually
     function toggleClaiming(bool state) external onlyOwner {
+        require(isClaimingOpen != state, "Already in desired state");
         isClaimingOpen = state;
     }
 
-    // 📊 Log any address balance
     function logBalance(address user) external view returns (uint256) {
         return _balances[user];
+    }
+
+    fallback() external payable {
+        revert("ATXIA: fallback disabled");
+    }
+
+    receive() external payable {
+        revert("ATXIA: cannot receive ETH");
     }
 }
