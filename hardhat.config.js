@@ -12,7 +12,7 @@ if (!SEPOLIA_RPC_URL || !PRIVATE_KEY || !ETHERSCAN_API_KEY) {
 
 export default {
   solidity: {
-    version: "0.8.20",
+    version: "0.8.21",
     settings: {
       optimizer: { enabled: true, runs: 1000 },
       evmVersion: "london",

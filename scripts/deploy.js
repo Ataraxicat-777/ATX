@@ -8,7 +8,7 @@ async function main() {
   const networkName = network.name;
   console.log("Deploying to network:", networkName);
 
-  const ATXIA = await ethers.getContractFactory("ATXIA");
+  const ATXIA = await ethers.getContractFactory("ATXIAGovernance");
   const initialOwner = deployer.address;
   const contract = await ATXIA.deploy(initialOwner, {
     gasLimit: 3000000,
@@ -24,7 +24,6 @@ async function main() {
   console.log("Constructor arguments:", JSON.stringify([initialOwner]));
   console.log(`npx hardhat verify --network ${networkName} ${contractAddress} "${initialOwner}"`);
 
-  // Optional metadata export
   const { chainId } = await deployer.provider.getNetwork();
   fs.mkdirSync("deployments", { recursive: true });
   fs.writeFileSync(

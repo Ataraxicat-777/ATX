@@ -1,8 +1,10 @@
 {
   "language": "Solidity",
   "sources": {
-    "ATX.sol": {
-      "urls": ["ATX.sol"]
+    "ATXIAGovernance_Fortress.sol": {
+      "urls": [
+        "ATXIAGovernance_Fortress.sol"
+      ]
     }
   },
   "settings": {
@@ -29,7 +31,9 @@
           "userdoc",
           "metadata"
         ],
-        "": ["ast"]
+        "": [
+          "ast"
+        ]
       }
     }
   }
