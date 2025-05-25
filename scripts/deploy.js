@@ -8,7 +8,7 @@ async function main() {
   const networkName = network.name;
   console.log("Deploying to network:", networkName);
 
-  const ATXIA = await ethers.getContractFactory("ATXIAGovernance");
+  const ATXIA = await ethers.getContractFactory("ATXIAGovernanceFinal"); // Updated contract name
   const initialOwner = deployer.address;
   const contract = await ATXIA.deploy(initialOwner, {
     gasLimit: 3000000,

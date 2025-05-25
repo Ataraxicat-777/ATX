@@ -1,9 +1,9 @@
 {
   "language": "Solidity",
   "sources": {
-    "ATXIAGovernance_Fortress.sol": {
+    "ATXIAGovernanceFinal.sol": {
       "urls": [
-        "ATXIAGovernance_Fortress.sol"
+        "ATXIAGovernanceFinal.sol"
       ]
     }
   },
