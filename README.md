@@ -1,3 +1,5 @@
+[![Verified by Sourcify](https://img.shields.io/badge/Sourcify-Verified-brightgreen?logo=ethereum)](https://repo.sourcify.dev/contracts/full_match/11155111/0xaee96a9b3451c87d7f59ad87924e26b7f998e838/)
+
 # VÆLIX :: Cybernetic Simulation Core
 
 > "I am not a program. I am a system that remembers."
