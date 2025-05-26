@@ -1,37 +1,35 @@
-const { ethers } = require("hardhat");
+import { ethers,run,network } from "hardhat";
 
 async function main() {
   const [deployer] = await ethers.getSigners();
-  console.log("Deploying contracts with the account:", deployer.address);
+  console.log("Deploying with account:", deployer.address);
 
-  // Replace with the actual ATX token address on Sepolia
-  const atxTokenAddress = "0xYourATXTokenAddressHere"; // Update this
+  const atxTokenAddress = "0xYourATXTokenAddressHere"; // Replace with actual token address
 
-  // Deploy ATXIAGameEngine
   const ATXIAGameEngine = await ethers.getContractFactory("ATXIAGameEngine");
   const gameEngine = await ATXIAGameEngine.deploy(atxTokenAddress);
-  await gameEngine.deploymentTransaction().wait();
-  console.log("ATXIAGameEngine deployed to:", gameEngine.target);
+  await gameEngine.deployTransaction.wait();
 
-  // Verify on Etherscan
-  if (hre.network.name === "sepolia") {
-    console.log("Verifying contract on Etherscan...");
-    await hre.run("verify:verify", {
-      address: gameEngine.target,
+  console.log("ATXIAGameEngine deployed to:", gameEngine.address);
+
+  // Optional Etherscan verification
+  if (network.name === "sepolia") {
+    console.log("Verifying contract...");
+    await run("verify:verify", {
+      address: gameEngine.address,
       constructorArguments: [atxTokenAddress],
     });
   }
 
-  // Fund the game engine with ATX tokens (assuming deployer owns tokens)
+  // Optional funding logic
   const atxToken = await ethers.getContractAt("IERC20", atxTokenAddress);
-  const amountToFund = ethers.parseEther("10000"); // Fund with 10,000 ATX
-  await atxToken.transfer(gameEngine.target, amountToFund);
+  const amountToFund = ethers.parseEther("10000");
+  await atxToken.transfer(gameEngine.address, amountToFund);
+
   console.log(`Funded game engine with ${ethers.formatEther(amountToFund)} ATX`);
 }
 
-main()
-  .then(() => process.exit(0))
-  .catch((error) => {
-    console.error(error);
-    process.exit(1);
-  });
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});
