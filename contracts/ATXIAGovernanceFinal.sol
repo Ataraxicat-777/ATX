@@ -1,229 +1,278 @@
 // SPDX-License-Identifier: Apache-2.0
-/*
- * Copyright 2025 Ataraxicat-777
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * You may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+pragma solidity ^0.8.26;
 
-pragma solidity 0.8.26;
+// Flattened version of ATXIAGameEngine for auditing purposes.
+// This file combines all inherited contracts and dependencies into a single file for transparency.
 
-// ========== Context ==========
-abstract contract Context {
-    function _msgSender() internal view virtual returns (address) {
-        return msg.sender;
-    }
-    function _msgData() internal view virtual returns (bytes calldata) {
-        return msg.data;
-    }
-}
-
-// ========== Ownable ==========
-abstract contract Ownable is Context {
-    address private _owner;
-
-    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
-
-    constructor(address initialOwner) {
-        require(initialOwner != address(0), "Ownable: zero address");
-        _owner = initialOwner;
-        emit OwnershipTransferred(address(0), initialOwner);
-    }
-
-    function owner() public view virtual returns (address) {
-        return _owner;
-    }
-
-    modifier onlyOwner() {
-        require(_msgSender() == _owner, "Ownable: not owner");
-        _;
-    }
-
-    function renounceOwnership() public virtual onlyOwner {
-        emit OwnershipTransferred(_owner, address(0));
-        _owner = address(0);
-    }
-
-    function transferOwnership(address newOwner) public virtual onlyOwner {
-        require(newOwner != address(0), "Ownable: zero address");
-        emit OwnershipTransferred(_owner, newOwner);
-        _owner = newOwner;
-    }
-}
-
-// ========== ReentrancyGuard ==========
-abstract contract ReentrancyGuard {
-    uint256 private constant _NOT_ENTERED = 1;
-    uint256 private constant _ENTERED = 2;
-    uint256 private _status;
-
-    constructor() {
-        _status = _NOT_ENTERED;
-    }
-
-    modifier nonReentrant() {
-        require(_status != _ENTERED, "ReentrancyGuard: reentrant");
-        _status = _ENTERED;
-        _;
-        _status = _NOT_ENTERED;
-    }
-}
-
-// ========== Address ==========
-library Address {
-    function isContract(address account) internal view returns (bool) {
-        return account.code.length > 0;
-    }
-}
-
-// ========== IERC20 ==========
+// === IERC20 Interface ===
 interface IERC20 {
-    event Transfer(address indexed from, address indexed to, uint256 value);
-    event Approval(address indexed owner, address indexed spender, uint256 value);
     function totalSupply() external view returns (uint256);
     function balanceOf(address account) external view returns (uint256);
     function transfer(address to, uint256 amount) external returns (bool);
     function allowance(address owner, address spender) external view returns (uint256);
     function approve(address spender, uint256 amount) external returns (bool);
     function transferFrom(address from, address to, uint256 amount) external returns (bool);
+    event Transfer(address indexed from, address indexed to, uint256 value);
+    event Approval(address indexed owner, address indexed spender, uint256 value);
 }
 
-// ========== ATXIAGovernanceFinal ==========
-abstract contract ATXIAGovernanceFinal is Context, Ownable, ReentrancyGuard, IERC20 {
+// === Address Library ===
+library Address {
+    function isContract(address account) internal view returns (bool) {
+        uint256 size;
+        assembly { size := extcodesize(account) }
+        return size > 0;
+    }
+
+    function sendValue(address payable recipient, uint256 amount) internal {
+        require(address(this).balance >= amount, "Address: insufficient balance");
+        (bool success, ) = recipient.call{value: amount}("");
+        require(success, "Address: unable to send value");
+    }
+
+    function functionCall(address target, bytes memory data) internal returns (bytes memory) {
+        return functionCall(target, data, "Address: low-level call failed");
+    }
+
+    function functionCall(address target, bytes memory data, string memory errorMessage) internal returns (bytes memory) {
+        return functionCallWithValue(target, data, 0, errorMessage);
+    }
+
+    function functionCallWithValue(address target, bytes memory data, uint256 value, string memory errorMessage) internal returns (bytes memory) {
+        require(address(this).balance >= value, "Address: insufficient balance for call");
+        require(isContract(target), "Address: call to non-contract");
+        (bool success, bytes memory returndata) = target.call{value: value}(data);
+        return verifyCallResult(success, returndata, errorMessage);
+    }
+
+    function verifyCallResult(bool success, bytes memory returndata, string memory errorMessage) internal pure returns (bytes memory) {
+        if (success) {
+            return returndata;
+        } else {
+            if (returndata.length > 0) {
+                assembly { let returndata_size := mload(returndata) revert(add(32, returndata), returndata_size) }
+            } else {
+                revert(errorMessage);
+            }
+        }
+    }
+}
+
+// === SafeERC20 Library ===
+library SafeERC20 {
     using Address for address;
 
-    // === Constants ===
-    uint256 private constant TOTAL_SUPPLY_CAP = 1_000_000_000 * 1e18;
-    uint256 private constant MIN_STAKE_FOR_PROPOSAL = 10_000 * 1e18;
-    uint256 private constant COOLDOWN_TIME = 1 days;
-    uint256 private constant VELOCITY_TRIGGER = 1000 * 1e18;
-    uint256 private constant VELOCITY_COOLDOWN = 1 minutes;
-    uint256 private constant PROPOSAL_FEE = 100 * 1e18;
-    uint256 private constant QUORUM_PERCENT = 5;
-    uint256 private constant TREASURY_FLOOR = 100_000 * 1e18;
-    uint256 private constant MAX_VOTE_WEIGHT_MULTIPLIER = 10;
-    uint256 private constant MAX_DESCRIPTION_LENGTH = 128;
-    uint256 private constant DECAY_BASE = 999;
-    uint256 private constant DECAY_DENOMINATOR = 1000;
-    uint256 private constant THIRTY_DAYS = 30 days;
-
-    // === Enums & Structs ===
-    enum FunctionType { MINT, BURN, PAUSE, UNPAUSE, SPEND, SET_PAUSE_DURATION, SET_DECAY_RATE }
-
-    struct Proposal {
-        address proposer;
-        address target;
-        uint256 packedData;
-        string description;
-        uint256 votesFor;
-        uint256 votesAgainst;
-        uint48 deadline;
-        uint256 amount;
+    function safeTransfer(IERC20 token, address to, uint256 value) internal {
+        _callOptionalReturn(token, abi.encodeWithSelector(token.transfer.selector, to, value));
     }
 
-    struct UserData {
-        uint48 lastProposalTimestamp;
-        uint256 proposalCount;
+    function safeTransferFrom(IERC20 token, address from, address to, uint256 value) internal {
+        _callOptionalReturn(token, abi.encodeWithSelector(token.transferFrom.selector, from, to, value));
     }
 
-    // === Storage ===
-    mapping(address => uint256) private _balances;
-    mapping(address => mapping(address => uint256)) private _allowances;
-    mapping(address => uint256) public voteWeight;
-    mapping(bytes32 => Proposal) public proposals;
-    mapping(address => UserData) public userData;
-    mapping(bytes32 => mapping(address => bool)) public hasVoted;
-    mapping(bytes32 => uint256) public uniqueVoterCount;
-    mapping(address => uint48) public lastVelocityBoost;
-    mapping(address => uint48) public lastVoteWeightUpdate;
-    mapping(bytes32 => uint48) public proposalExecutionTime;
+    function _callOptionalReturn(IERC20 token, bytes memory data) private {
+        bytes memory returndata = address(token).functionCall(data, "SafeERC20: low-level call failed");
+        if (returndata.length > 0) {
+            require(abi.decode(returndata, (bool)), "SafeERC20: ERC20 operation did not succeed");
+        }
+    }
+}
 
-    uint256 public totalSupply;
-    uint48 public lastProposalTime;
-    uint256 public inactivityCounter;
-    bool public isPaused;
-    uint48 public pauseTimestamp;
-    uint256 public pauseDuration = 7 days;
-    uint256 public decayRate = 1e18;
-    address public immutable initialOwner;
+// === Ownable2Step Abstract Contract ===
+abstract contract Ownable2Step {
+    address private _owner;
+    address private _pendingOwner;
 
-    // === Events ===
-    event ContractDeployed(address indexed initialOwner);
-    event ProposalCreated(bytes32 indexed id, string description);
-    event ProposalExecuted(bytes32 indexed id, FunctionType action);
-    event VoteCast(address indexed voter, bytes32 indexed id, bool support);
-    event RiskFlagged(bytes32 indexed id, string reason);
-    event TreasurySpent(address indexed to, uint256 amount);
-    event PauseDurationSet(uint256 newDuration);
-    event DecayRateSet(uint256 newRate);
-    event Mint(address indexed to, uint256 value);
-    event Burn(address indexed from, uint256 value);
+    event OwnershipTransferStarted(address indexed previousOwner, address indexed newOwner);
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
-    // === Errors ===
-    error NotEnoughStake();
+    constructor() {
+        _owner = msg.sender;
+        emit OwnershipTransferred(address(0), _owner);
+    }
+
+    modifier onlyOwner() {
+        require(msg.sender == _owner, "Ownable2Step: caller is not the owner");
+        _;
+    }
+
+    function transferOwnership(address newOwner) public onlyOwner {
+        require(newOwner != address(0), "Ownable2Step: zero address");
+        _pendingOwner = newOwner;
+        emit OwnershipTransferStarted(_owner, newOwner);
+    }
+
+    function acceptOwnership() public {
+        require(msg.sender == _pendingOwner, "Ownable2Step: caller is not the new owner");
+        emit OwnershipTransferred(_owner, _pendingOwner);
+        _owner = _pendingOwner;
+        _pendingOwner = address(0);
+    }
+
+    function owner() public view returns (address) {
+        return _owner;
+    }
+}
+
+// === ReentrancyGuard Abstract Contract ===
+abstract contract ReentrancyGuard {
+    uint256 private _status = 1;
+    modifier nonReentrant() {
+        require(_status != 2, "ReentrancyGuard: reentrant call");
+        _status = 2;
+        _;
+        _status = 1;
+    }
+}
+
+// === ATXIA Game Engine Contract ===
+contract ATXIAGameEngine is Ownable2Step, ReentrancyGuard {
+    using SafeERC20 for IERC20;
+
+    struct PlayerData {
+        uint64 lastTap;
+        uint64 tapCooldown;
+        uint64 lastBoostedTapTime;
+        uint64 lastPassiveClaimTime;
+        uint64 totalTaps;
+        uint64 totalPassiveEarned;
+        uint128 tapYield;
+        uint128 totalBoostedYield;
+    }
+
+    mapping(address => PlayerData) public players;
+
+    IERC20 public immutable atxToken;
+
+    uint256 public constant BASE_REWARD = 1e18;   // 1 ATX
+    uint256 public constant BASE_COOLDOWN = 60;   // 60 seconds
+    uint256 public constant MAX_YIELD = 10e18;    // 10 ATX
+    uint256 public constant MIN_COOLDOWN = 10;    // 10 seconds
+
+    event IdleTapped(address indexed user, uint256 reward);
+    event BoostedTap(address indexed user, uint256 baseYield, uint256 multiplier, uint256 boostedYield);
+    event PassiveClaimed(address indexed user, uint256 reward, uint256 multiplier);
+    event TapYieldUpgraded(address indexed user, uint256 levels, uint256 newYield);
+    event CooldownUpgraded(address indexed user, uint256 levels, uint256 newCooldown);
+
     error CooldownActive();
-    error InvalidDescription();
-    error TooManyProposals();
-    error InvalidAddress();
-    error InsufficientBalance(uint256 balance, uint256 required);
-    error InsufficientAllowance(uint256 allowance, uint256 required);
-    error VotingEnded();
-    error AlreadyVoted();
-    error NoVotingPower();
-    error VotingOngoing();
-    error AlreadyExecuted();
-    error QuorumNotMet();
-    error InsufficientMajority();
-    error InsufficientVoters();
-    error DelayNotPassed();
-    error SupplyCapExceeded();
-    error InsufficientTreasury();
-    error TreasuryTooLow();
-    error PauseLockActive();
-    error InvalidDuration();
-    error DecayRateTooHigh();
-    error ContractPaused();
+    error ContractsNotAllowed();
+    error AlreadyClaimed();
+    error InsufficientTokens();
 
-    // === Constructor ===
-    constructor(address _initialOwner) Ownable(_initialOwner) {
-        require(_initialOwner != address(0), "Invalid owner");
-        initialOwner = _initialOwner;
-        _balances[address(this)] = 500_000 * 1e18;
-        totalSupply = 500_000 * 1e18;
-        lastProposalTime = uint48(block.timestamp);
-        emit ContractDeployed(_initialOwner);
-        emit Transfer(address(0), address(this), 500_000 * 1e18);
+    constructor(address _atxToken) Ownable2Step() {
+        require(_atxToken != address(0), "Invalid token");
+        atxToken = IERC20(_atxToken);
     }
 
-    // [ FUNCTIONALITY TRUNCATED HERE FOR BREVITY ]
-    // You can now safely copy-paste your own previously audited implementation logic (which was extremely long).
-    // This flattened header gives you the exact structure and legal license alignment.
-
-    // === Example continuation point ===
-    function name() public pure returns (string memory) {
-        return "ATXIA";
+    modifier onlyHuman() {
+        if (tx.origin != msg.sender) {
+            revert ContractsNotAllowed();
+        }
+        _;
     }
 
-    function symbol() public pure returns (string memory) {
-        return "ATX";
+    function tap() external nonReentrant onlyHuman {
+        address user = msg.sender;
+        PlayerData storage p = players[user];
+
+        if (!_cooldownElapsed(p.lastTap, p.tapCooldown)) revert CooldownActive();
+
+        uint256 finalYield = _computeTapYield(user, p);
+        p.lastTap = uint64(block.timestamp);
+        p.totalTaps++;
+
+        atxToken.safeTransfer(user, finalYield);
+        emit IdleTapped(user, finalYield);
     }
 
-    function decimals() public pure returns (uint8) {
-        return 18;
+    function claimPassive() external nonReentrant onlyHuman {
+        address user = msg.sender;
+        PlayerData storage p = players[user];
+
+        if (block.timestamp <= p.lastPassiveClaimTime) revert AlreadyClaimed();
+
+        (uint256 reward, uint256 multiplier) = _computePassiveReward(p);
+        p.lastPassiveClaimTime = uint64(block.timestamp);
+        p.totalPassiveEarned += uint64(reward);
+
+        atxToken.safeTransfer(user, reward);
+        emit PassiveClaimed(user, reward, multiplier);
     }
 
-    function balanceOf(address account) public view override returns (uint256) {
-        return _balances[account];
+    function upgradeTapYield(uint256 levels) external nonReentrant onlyHuman {
+        PlayerData storage p = players[msg.sender];
+        uint256 cost = levels * 1e18; // 1 ATX per level
+        atxToken.safeTransferFrom(msg.sender, address(this), cost);
+
+        uint256 newYield = p.tapYield + levels * 1e17; // +0.1 ATX per level
+        if (newYield > MAX_YIELD) {
+            newYield = MAX_YIELD;
+        }
+        p.tapYield = uint128(newYield);
+        emit TapYieldUpgraded(msg.sender, levels, newYield);
     }
 
-    // CONTINUE with your `_transfer`, `_mint`, `propose`, `vote`, `executeProposal`, etc.
+    function upgradeTapCooldown(uint256 levels) external nonReentrant onlyHuman {
+        PlayerData storage p = players[msg.sender];
+        uint256 cost = levels * 1e18; // 1 ATX per level
+        atxToken.safeTransferFrom(msg.sender, address(this), cost);
+
+        uint256 currentCooldown = p.tapCooldown > 0 ? p.tapCooldown : BASE_COOLDOWN;
+        uint256 reduction = levels * 1; // 1 second per level
+        uint256 newCooldown = currentCooldown > reduction ? currentCooldown - reduction : MIN_COOLDOWN;
+        p.tapCooldown = uint64(newCooldown);
+        emit CooldownUpgraded(msg.sender, levels, newCooldown);
+    }
+
+    function _cooldownElapsed(uint256 lastTapTime, uint256 cooldown) internal view returns (bool) {
+        uint256 effectiveCooldown = cooldown > 0 ? cooldown : BASE_COOLDOWN;
+        return block.timestamp >= lastTapTime + effectiveCooldown;
+    }
+
+    function _computeTapYield(address user, PlayerData storage p) internal returns (uint256) {
+        uint256 base = p.tapYield > 0 ? p.tapYield : BASE_REWARD;
+        if (p.totalTaps >= 500) {
+            base = (base * 95) / 100; // 5% reduction after 500 taps
+        }
+        uint256 multiplier = _getTapMultiplier();
+        uint256 reward = base * multiplier;
+
+        if (multiplier > 1) {
+            p.lastBoostedTapTime = uint64(block.timestamp);
+            p.totalBoostedYield += uint128(reward - base);
+            emit BoostedTap(user, base, multiplier, reward);
+        }
+
+        return reward;
+    }
+
+    function _getTapMultiplier() internal view returns (uint256) {
+        uint256 day = block.timestamp / 86400;
+        uint256 dayOfWeek = (day + 4) % 7; // 0: Thu, 1: Fri, 2: Sat, 3: Sun
+        if (dayOfWeek == 2 || dayOfWeek == 3) { // Weekend: Sat or Sun
+            return 3;
+        } else {
+            uint256 currentHour = (block.timestamp % 86400) / 3600;
+            uint256 boostStartHour = day % 24;
+            uint256 boostEndHour = (boostStartHour + 2) % 24;
+            bool isBoostHour;
+            if (boostStartHour < boostEndHour) {
+                isBoostHour = currentHour >= boostStartHour && currentHour < boostEndHour;
+            } else { // Wrap-around (e.g., 23:00 to 01:00)
+                isBoostHour = currentHour >= boostStartHour || currentHour < boostEndHour;
+            }
+            return isBoostHour ? 2 : 1;
+        }
+    }
+
+    function _computePassiveReward(PlayerData storage p) internal view returns (uint256, uint256) {
+        uint256 elapsed = block.timestamp - p.lastPassiveClaimTime;
+        if (elapsed > 24 * 3600) {
+            elapsed = 24 * 3600; // Cap at 24 hours
+        }
+        uint256 multiplier = (p.lastBoostedTapTime == p.lastTap) ? 3 : 1;
+        uint256 reward = (elapsed * BASE_REWARD * multiplier) / 3600;
+        return (reward, multiplier);
+    }
 }
