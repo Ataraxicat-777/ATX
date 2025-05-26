@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: APLv3 OR LATER
 pragma solidity ^0.8.26;
 
 // Flattened version of ATXIAGameEngine for auditing purposes.
